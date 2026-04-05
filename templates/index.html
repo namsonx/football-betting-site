@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}KickOff Exchange{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="hero-copy">
+        <p class="eyebrow">{{ t('home.eyebrow') }}</p>
+        <h1>{{ t('home.title') }}</h1>
+        <p class="hero-text">{{ t('home.description') }}</p>
+        <div class="hero-actions">
+            <a class="button primary" href="{{ url_for('register') }}">{{ t('home.start_credits') }}</a>
+            <a class="button secondary" href="{{ url_for('login') }}">{{ t('home.sign_in') }}</a>
+        </div>
+    </div>
+    <div class="hero-panel">
+        <p class="panel-label">{{ t('home.featured') }}</p>
+        {% for match in featured_matches %}
+            <article class="fixture-card compact">
+                <div>
+                    <h3>{{ match['home_team'] }} {{ t('common.vs') }} {{ match['away_team'] }}</h3>
+                    <p>{{ match['stadium'] }}</p>
+                </div>
+                <div class="fixture-meta">
+                    <span>{{ match['kickoff_at']|kickoff }}</span>
+                    <span>{{ match['home_odds'] }} / {{ match['draw_odds'] }} / {{ match['away_odds'] }}</span>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="feature-grid">
+    <article class="feature-card">
+        <p class="feature-index">01</p>
+        <h2>{{ t('home.feature1_title') }}</h2>
+        <p>{{ t('home.feature1_desc') }}</p>
+    </article>
+    <article class="feature-card">
+        <p class="feature-index">02</p>
+        <h2>{{ t('home.feature2_title') }}</h2>
+        <p>{{ t('home.feature2_desc') }}</p>
+    </article>
+    <article class="feature-card">
+        <p class="feature-index">03</p>
+        <h2>{{ t('home.feature3_title') }}</h2>
+        <p>{{ t('home.feature3_desc') }}</p>
+    </article>
+</section>
+{% endblock %}

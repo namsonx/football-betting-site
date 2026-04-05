@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('history.title') }} · KickOff Exchange{% endblock %}
+
+{% block content %}
+<section class="section-head">
+    <div>
+        <p class="eyebrow">{{ t('history.ledger') }}</p>
+        <h1>{{ t('history.bet_history') }}</h1>
+        <p>{{ t('history.subtitle') }}</p>
+    </div>
+</section>
+
+<section class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>{{ t('table.placed') }}</th>
+                <th>{{ t('table.fixture') }}</th>
+                <th>{{ t('table.pick') }}</th>
+                <th>{{ t('table.odds') }}</th>
+                <th>{{ t('table.stake') }}</th>
+                <th>{{ t('table.status') }}</th>
+                <th>{{ t('table.score') }}</th>
+                <th>{{ t('table.payout') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for bet in bets %}
+                <tr>
+                    <td>{{ bet['placed_at']|kickoff }}</td>
+                    <td>{{ bet['home_team'] }} {{ t('common.vs') }} {{ bet['away_team'] }}</td>
+                    <td>{{ bet['outcome']|upper }}</td>
+                    <td>{{ bet['odds'] }}</td>
+                    <td>{{ bet['stake']|money }}</td>
+                    <td><span class="status status-{{ bet['status'] }}">{{ t('status.' ~ bet['status']) }}</span></td>
+                    <td>
+                        {% if bet['score_home'] is not none and bet['score_away'] is not none %}
+                            {{ bet['score_home'] }} - {{ bet['score_away'] }}
+                        {% else %}
+                            {{ t('common.pending') }}
+                        {% endif %}
+                    </td>
+                    <td>{{ (bet['payout'] or 0)|money }}</td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="8" class="empty-row">{{ t('history.no_bets') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('dashboard.title') }} · KickOff Exchange{% endblock %}
+
+{% block content %}
+<section class="dashboard-header">
+    <div>
+        <p class="eyebrow">{{ t('dashboard.control_room') }}</p>
+        <h1>{{ t('dashboard.live_market', username=user['username']) }}</h1>
+        <p>{{ t('dashboard.summary') }}</p>
+    </div>
+    <form method="post" action="{{ url_for('settle') }}">
+        <button class="button secondary" type="submit">{{ t('dashboard.settle_button') }}</button>
+    </form>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>{{ t('dashboard.balance') }}</span>
+        <strong>{{ user['balance']|money }} cr</strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('dashboard.total_bets') }}</span>
+        <strong>{{ stats['total_bets'] }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('dashboard.total_staked') }}</span>
+        <strong>{{ stats['total_staked']|money }} cr</strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('dashboard.total_returns') }}</span>
+        <strong>{{ stats['total_returns']|money }} cr</strong>
+    </article>
+</section>
+
+<section class="section-head">
+    <div>
+        <p class="eyebrow">{{ t('profile.title') }}</p>
+        <h2>{{ t('profile.subtitle') }}</h2>
+    </div>
+</section>
+
+<section class="table-card">
+    <form class="auth-card" method="post" action="{{ url_for('update_profile') }}">
+        <label for="full_name">{{ t('profile.full_name') }}</label>
+        <input id="full_name" name="full_name" type="text" value="{{ user['full_name'] or '' }}">
+        <label for="email">{{ t('profile.email') }}</label>
+        <input id="email" name="email" type="email" value="{{ user['email'] or '' }}">
+        <label for="phone">{{ t('profile.phone') }}</label>
+        <input id="phone" name="phone" type="text" value="{{ user['phone'] or '' }}">
+        <button class="button primary" type="submit">{{ t('profile.update_button') }}</button>
+    </form>
+</section>
+
+<section class="section-head">
+    <div>
+        <p class="eyebrow">{{ t('dashboard.upcoming') }}</p>
+        <h2>{{ t('dashboard.place_bet') }}</h2>
+    </div>
+</section>
+
+<section class="fixtures-grid">
+    {% for match in upcoming_matches %}
+        <article class="fixture-card">
+            <div class="fixture-topline">
+                <div>
+                    <p class="fixture-time">{{ match['kickoff_at']|kickoff }}</p>
+                    <h3>{{ match['home_team'] }} <span>{{ t('common.vs') }}</span> {{ match['away_team'] }}</h3>
+                    <p>{{ match['stadium'] }}</p>
+                </div>
+                <div class="fixture-odds">
+                    <span>1 {{ match['home_odds'] }}</span>
+                    <span>X {{ match['draw_odds'] }}</span>
+                    <span>2 {{ match['away_odds'] }}</span>
+                </div>
+            </div>
+            <form class="bet-form" method="post" action="{{ url_for('place_bet') }}">
+                <input type="hidden" name="match_id" value="{{ match['id'] }}">
+                <div class="pick-row">
+                    <label><input type="radio" name="outcome" value="home" checked> {{ t('dashboard.home_win') }}</label>
+                    <label><input type="radio" name="outcome" value="draw"> {{ t('dashboard.draw') }}</label>
+                    <label><input type="radio" name="outcome" value="away"> {{ t('dashboard.away_win') }}</label>
+                </div>
+                <div class="stake-row">
+                    <input name="stake" type="number" min="5" step="0.01" placeholder="{{ t('dashboard.stake_placeholder') }}" required>
+                    <button class="button primary" type="submit">{{ t('dashboard.place_bet_btn') }}</button>
+                </div>
+            </form>
+        </article>
+    {% else %}
+        <article class="empty-state">{{ t('dashboard.no_matches') }}</article>
+    {% endfor %}
+</section>
+
+<section class="section-head split">
+    <div>
+        <p class="eyebrow">{{ t('dashboard.recent_activity') }}</p>
+        <h2>{{ t('dashboard.latest_bets') }}</h2>
+    </div>
+    <a class="text-link" href="{{ url_for('history') }}">{{ t('dashboard.view_history') }}</a>
+</section>
+
+<section class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>{{ t('table.fixture') }}</th>
+                <th>{{ t('table.pick') }}</th>
+                <th>{{ t('table.stake') }}</th>
+                <th>{{ t('table.status') }}</th>
+                <th>{{ t('table.payout') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for bet in recent_bets %}
+                <tr>
+                    <td>{{ bet['home_team'] }} {{ t('common.vs') }} {{ bet['away_team'] }}</td>
+                    <td>{{ bet['outcome']|upper }}</td>
+                    <td>{{ bet['stake']|money }}</td>
+                    <td><span class="status status-{{ bet['status'] }}">{{ t('status.' ~ bet['status']) }}</span></td>
+                    <td>{{ (bet['payout'] or 0)|money }}</td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="5" class="empty-row">{{ t('table.no_recent_bets') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

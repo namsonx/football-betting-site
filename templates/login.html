@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('auth.login_title') }} · KickOff Exchange{% endblock %}
+
+{% block content %}
+<section class="auth-layout">
+    <div class="auth-copy">
+        <p class="eyebrow">{{ t('auth.welcome') }}</p>
+        <h1>{{ t('auth.signin_manage') }}</h1>
+        <p>{{ t('auth.dashboard_hint') }}</p>
+    </div>
+    <form class="auth-card" method="post">
+        <label for="username">{{ t('auth.username') }}</label>
+        <input id="username" name="username" type="text" placeholder="MU mãi đỉnh" required>
+
+        <label for="password">{{ t('auth.password') }}</label>
+        <input id="password" name="password" type="password" placeholder="{{ t('auth.password_hint') }}" required>
+
+        <button class="button primary" type="submit">{{ t('auth.sign_in') }}</button>
+        <p class="auth-footer">{{ t('auth.no_account') }} <a href="{{ url_for('register') }}">{{ t('auth.create_one') }}</a>.</p>
+    </form>
+</section>
+{% endblock %}

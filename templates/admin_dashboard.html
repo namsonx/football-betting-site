@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('admin.panel_title') }} · KickOff Exchange{% endblock %}
+
+{% block content %}
+<section class="dashboard-header">
+    <div>
+        <p class="eyebrow">{{ t('admin.panel_title') }}</p>
+        <h1>{{ t('admin.greeting', username=user['username']) }}</h1>
+        <p>{{ t('admin.summary') }}</p>
+    </div>
+</section>
+
+<section class="section-head">
+    <div>
+        <p class="eyebrow">{{ t('admin.matches_title') }}</p>
+        <h2>{{ t('admin.matches_subtitle') }}</h2>
+    </div>
+</section>
+
+<section class="fixtures-grid">
+    {% for match in matches %}
+        <article class="fixture-card">
+            <div class="fixture-topline">
+                <div>
+                    <p class="fixture-time">{{ match['kickoff_at']|kickoff }}</p>
+                    <h3>{{ match['home_team'] }} <span>{{ t('common.vs') }}</span> {{ match['away_team'] }}</h3>
+                    <p>{{ match['stadium'] }}</p>
+                </div>
+                <div class="fixture-odds">
+                    <span>1 {{ match['home_odds'] }}</span>
+                    <span>X {{ match['draw_odds'] }}</span>
+                    <span>2 {{ match['away_odds'] }}</span>
+                </div>
+            </div>
+            <form class="bet-form" method="post" action="{{ url_for('admin_update_match') }}">
+                <input type="hidden" name="match_id" value="{{ match['id'] }}">
+                <label>{{ t('admin.home_team') }}</label>
+                <input name="home_team" type="text" value="{{ match['home_team'] }}" required>
+                <label>{{ t('admin.away_team') }}</label>
+                <input name="away_team" type="text" value="{{ match['away_team'] }}" required>
+                <label>{{ t('admin.kickoff') }}</label>
+                <input name="kickoff_at" type="text" value="{{ match['kickoff_at'] }}" required>
+                <label>{{ t('admin.stadium') }}</label>
+                <input name="stadium" type="text" value="{{ match['stadium'] }}" required>
+                <div class="stake-row">
+                    <input name="home_odds" type="number" min="1.01" step="0.01" value="{{ match['home_odds'] }}" required>
+                    <input name="draw_odds" type="number" min="1.01" step="0.01" value="{{ match['draw_odds'] }}" required>
+                    <input name="away_odds" type="number" min="1.01" step="0.01" value="{{ match['away_odds'] }}" required>
+                    <select name="status">
+                        <option value="scheduled" {% if match['status'] == 'scheduled' %}selected{% endif %}>scheduled</option>
+                        <option value="settled" {% if match['status'] == 'settled' %}selected{% endif %}>settled</option>
+                    </select>
+                    <button class="button primary" type="submit">{{ t('admin.update_match') }}</button>
+                </div>
+            </form>
+        </article>
+    {% else %}
+        <article class="empty-state">{{ t('admin.no_matches') }}</article>
+    {% endfor %}
+</section>
+
+<section class="section-head">
+    <div>
+        <p class="eyebrow">{{ t('admin.users_title') }}</p>
+        <h2>{{ t('admin.users_subtitle') }}</h2>
+    </div>
+</section>
+
+<section class="fixtures-grid">
+    {% for managed_user in users %}
+        <article class="fixture-card">
+            <form class="bet-form" method="post" action="{{ url_for('admin_update_user') }}">
+                <input type="hidden" name="user_id" value="{{ managed_user['id'] }}">
+                <label>{{ t('auth.username') }}</label>
+                <input type="text" value="{{ managed_user['username'] }}" disabled>
+                <div class="stake-row">
+                    <label>
+                        {{ t('admin.role') }}
+                        <select name="role">
+                            <option value="user" {% if managed_user['role'] == 'user' %}selected{% endif %}>user</option>
+                            <option value="admin" {% if managed_user['role'] == 'admin' %}selected{% endif %}>admin</option>
+                        </select>
+                    </label>
+                    <label>
+                        {{ t('dashboard.balance') }}
+                        <input type="number" min="0" step="0.01" name="balance" value="{{ managed_user['balance'] }}" required>
+                    </label>
+                </div>
+                <label>{{ t('profile.full_name') }}</label>
+                <input name="full_name" type="text" value="{{ managed_user['full_name'] or '' }}">
+                <label>{{ t('profile.email') }}</label>
+                <input name="email" type="email" value="{{ managed_user['email'] or '' }}">
+                <label>{{ t('profile.phone') }}</label>
+                <input name="phone" type="text" value="{{ managed_user['phone'] or '' }}">
+                <button class="button primary" type="submit">{{ t('admin.update_user') }}</button>
+            </form>
+        </article>
+    {% else %}
+        <article class="empty-state">{{ t('admin.no_users') }}</article>
+    {% endfor %}
+</section>
+{% endblock %}
