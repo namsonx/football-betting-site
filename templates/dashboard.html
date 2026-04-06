@@ -35,25 +35,6 @@
 
 <section class="section-head">
     <div>
-        <p class="eyebrow">{{ t('profile.title') }}</p>
-        <h2>{{ t('profile.subtitle') }}</h2>
-    </div>
-</section>
-
-<section class="table-card">
-    <form class="auth-card" method="post" action="{{ url_for('update_profile') }}">
-        <label for="full_name">{{ t('profile.full_name') }}</label>
-        <input id="full_name" name="full_name" type="text" value="{{ user['full_name'] or '' }}">
-        <label for="email">{{ t('profile.email') }}</label>
-        <input id="email" name="email" type="email" value="{{ user['email'] or '' }}">
-        <label for="phone">{{ t('profile.phone') }}</label>
-        <input id="phone" name="phone" type="text" value="{{ user['phone'] or '' }}">
-        <button class="button primary" type="submit">{{ t('profile.update_button') }}</button>
-    </form>
-</section>
-
-<section class="section-head">
-    <div>
         <p class="eyebrow">{{ t('dashboard.upcoming') }}</p>
         <h2>{{ t('dashboard.place_bet') }}</h2>
     </div>
@@ -127,5 +108,23 @@
             {% endfor %}
         </tbody>
     </table>
+</section>
+
+<section class="section-head">
+    <div>
+        <p class="eyebrow">{{ t('profile.title') }}</p>
+        <h2>{{ t('profile.subtitle') }}</h2>
+    </div>
+</section>
+<section class="table-card">
+    <form class="auth-card" method="post" action="{{ url_for('update_profile') }}">
+        <label for="full_name">{{ t('profile.full_name') }}</label>
+        <input id="full_name" name="full_name" type="text" value="{{ user['full_name'] or '' }}">
+        <label for="email">{{ t('profile.email') }}</label>
+        <input id="email" name="email" type="email" value="{{ user['email'] or '' }}">
+        <label for="phone">{{ t('profile.phone') }}</label>
+        <input id="phone" name="phone" type="text" value="{{ user['phone'] or '' }}">
+        <button class="button primary" type="submit">{{ t('profile.update_button') }}</button>
+    </form>
 </section>
 {% endblock %}

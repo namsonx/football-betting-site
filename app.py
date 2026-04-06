@@ -203,15 +203,60 @@ def format_kickoff(value):
 
 @app.route("/")
 def index():
-    featured_matches = BETTING_DB.get_db().execute(
+    db = BETTING_DB.get_db()
+    ranking_users = db.execute(
+        """
+        SELECT username, balance
+        FROM users
+        WHERE role = 'user'
+        ORDER BY balance DESC, username ASC
+        LIMIT 10
+        """
+    ).fetchall()
+
+    per_page = 3
+    try:
+        page = int(request.args.get("page", "1"))
+    except ValueError:
+        page = 1
+    page = max(1, page)
+
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow_start = today_start + timedelta(days=1)
+
+    total_today = db.execute(
+        """
+        SELECT COUNT(*) AS total
+        FROM matches
+        WHERE kickoff_at >= ? AND kickoff_at < ?
+        """,
+        (today_start.isoformat(), tomorrow_start.isoformat()),
+    ).fetchone()["total"]
+
+    total_pages = max(1, (total_today + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+    offset = (page - 1) * per_page
+
+    today_matches = db.execute(
         """
         SELECT *
         FROM matches
+        WHERE kickoff_at >= ? AND kickoff_at < ?
         ORDER BY kickoff_at ASC
-        LIMIT 3
-        """
+        LIMIT ? OFFSET ?
+        """,
+        (today_start.isoformat(), tomorrow_start.isoformat(), per_page, offset),
     ).fetchall()
-    return render_template("index.html", featured_matches=featured_matches)
+
+    return render_template(
+        "index.html",
+        ranking_users=ranking_users,
+        today_matches=today_matches,
+        page=page,
+        total_pages=total_pages,
+        total_today=total_today,
+    )
 
 
 @app.route("/register", methods=["GET", "POST"])

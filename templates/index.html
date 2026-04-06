@@ -5,8 +5,19 @@
 {% block content %}
 <section class="hero">
     <div class="hero-copy">
-        <p class="eyebrow">{{ t('home.eyebrow') }}</p>
-        <h1>{{ t('home.title') }}</h1>
+        <p class="eyebrow">{{ t('home.ranking_title') }}</p>
+        <div class="ranking-card">
+            {% for ranked_user in ranking_users %}
+                <div class="ranking-item">
+                    <span class="ranking-rank">#{{ loop.index }}</span>
+                    <span class="ranking-name">{{ ranked_user['username'] }}</span>
+                    <strong class="ranking-balance">{{ ranked_user['balance']|money }} cr</strong>
+                </div>
+            {% else %}
+                <p class="empty-row">{{ t('home.ranking_empty') }}</p>
+            {% endfor %}
+        </div>
+        <h2>{{ t('home.title') }}</h2>
         <p class="hero-text">{{ t('home.description') }}</p>
         <div class="hero-actions">
             <a class="button primary" href="{{ url_for('register') }}">{{ t('home.start_credits') }}</a>
@@ -14,8 +25,8 @@
         </div>
     </div>
     <div class="hero-panel">
-        <p class="panel-label">{{ t('home.featured') }}</p>
-        {% for match in featured_matches %}
+        <p class="panel-label">{{ t('home.today_matches') }}</p>
+        {% for match in today_matches %}
             <article class="fixture-card compact">
                 <div>
                     <h3>{{ match['home_team'] }} {{ t('common.vs') }} {{ match['away_team'] }}</h3>
@@ -26,7 +37,23 @@
                     <span>{{ match['home_odds'] }} / {{ match['draw_odds'] }} / {{ match['away_odds'] }}</span>
                 </div>
             </article>
+        {% else %}
+            <article class="empty-state">{{ t('home.no_today_matches') }}</article>
         {% endfor %}
+
+        {% if total_today > 0 %}
+            <div class="pager-bar">
+                <span>{{ t('home.page_info', page=page, total=total_pages) }}</span>
+                <div class="pager-actions">
+                    {% if page > 1 %}
+                        <a class="button secondary" href="{{ url_for('index', page=page-1) }}">{{ t('home.prev') }}</a>
+                    {% endif %}
+                    {% if page < total_pages %}
+                        <a class="button secondary" href="{{ url_for('index', page=page+1) }}">{{ t('home.next') }}</a>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
     </div>
 </section>
 
