@@ -114,6 +114,73 @@ def log_activity(
         ),
     )
 
+
+def settle_match_with_result(match_id: int, result: str, score_home: int, score_away: int):
+    db = BETTING_DB.get_db()
+    match = db.execute(
+        "SELECT id, home_team, away_team FROM matches WHERE id = ?",
+        (match_id,),
+    ).fetchone()
+    if match is None:
+        return None
+
+    settled_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+    bets = db.execute(
+        """
+        SELECT id, user_id, outcome, odds, stake, status, payout
+        FROM bets
+        WHERE match_id = ?
+        """,
+        (match_id,),
+    ).fetchall()
+
+    # If result is changed for an already settled match, remove previous winnings first.
+    for bet in bets:
+        if bet["status"] == "won" and bet["payout"]:
+            db.execute(
+                "UPDATE users SET balance = balance - ? WHERE id = ?",
+                (bet["payout"], bet["user_id"]),
+            )
+
+    settlement_events = []
+    for bet in bets:
+        won = bet["outcome"] == result
+        payout = round(bet["stake"] * bet["odds"], 2) if won else 0.0
+        bet_status = "won" if won else "lost"
+
+        db.execute(
+            "UPDATE bets SET status = ?, payout = ?, settled_at = ? WHERE id = ?",
+            (bet_status, payout, settled_at, bet["id"]),
+        )
+
+        if won:
+            db.execute(
+                "UPDATE users SET balance = balance + ? WHERE id = ?",
+                (payout, bet["user_id"]),
+            )
+
+        settlement_events.append(
+            {
+                "user_id": bet["user_id"],
+                "bet_id": bet["id"],
+                "fixture": f"{match['home_team']} vs {match['away_team']}",
+                "status": bet_status,
+                "payout": payout,
+                "settled_at": settled_at,
+            }
+        )
+
+    db.execute(
+        """
+        UPDATE matches
+        SET status = 'settled', score_home = ?, score_away = ?, result = ?, settled_at = ?
+        WHERE id = ?
+        """,
+        (score_home, score_away, result, settled_at, match_id),
+    )
+
+    return settlement_events
+
 @app.context_processor
 def inject_globals():
     return {
@@ -493,6 +560,58 @@ def admin_update_match():
     )
     db.commit()
     flash(t("flash.match_updated"), "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/matches/result", methods=["POST"])
+@admin_required
+def admin_update_match_result():
+    try:
+        match_id = int(request.form.get("match_id", "0"))
+        score_home = int(request.form.get("score_home", "0"))
+        score_away = int(request.form.get("score_away", "0"))
+    except ValueError:
+        flash(t("flash.invalid_match_result"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    result = request.form.get("result", "").strip()
+    if result not in {"home", "draw", "away"}:
+        flash(t("flash.invalid_match_result"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    expected_result = "draw"
+    if score_home > score_away:
+        expected_result = "home"
+    elif score_away > score_home:
+        expected_result = "away"
+
+    if expected_result != result:
+        flash(t("flash.invalid_match_result"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    events = settle_match_with_result(match_id, result, score_home, score_away)
+    if events is None:
+        flash(t("flash.invalid_match_result"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    for event in events:
+        result_label = t("status.won") if event["status"] == "won" else t("status.lost")
+        log_activity(
+            user_id=event["user_id"],
+            activity_type="bet_settled",
+            title=t("activity.bet_settled_title"),
+            details=t(
+                "activity.bet_settled_manual_details",
+                fixture=event["fixture"],
+                result=result_label,
+                payout=f"{event['payout']:.2f}",
+            ),
+            related_bet_id=event["bet_id"],
+            created_at=event["settled_at"],
+        )
+
+    BETTING_DB.get_db().commit()
+    flash(t("flash.match_result_updated"), "success")
     return redirect(url_for("admin_dashboard"))
 
 

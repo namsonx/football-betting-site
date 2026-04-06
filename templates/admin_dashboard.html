@@ -54,6 +54,21 @@
                     <button class="button primary" type="submit">{{ t('admin.update_match') }}</button>
                 </div>
             </form>
+
+            <form class="bet-form" method="post" action="{{ url_for('admin_update_match_result') }}">
+                <input type="hidden" name="match_id" value="{{ match['id'] }}">
+                <label>{{ t('admin.match_result') }}</label>
+                <div class="stake-row">
+                    <input name="score_home" type="number" min="0" step="1" value="{{ match['score_home'] if match['score_home'] is not none else 0 }}" required>
+                    <input name="score_away" type="number" min="0" step="1" value="{{ match['score_away'] if match['score_away'] is not none else 0 }}" required>
+                    <select name="result">
+                        <option value="home" {% if match['result'] == 'home' %}selected{% endif %}>{{ t('dashboard.home_win') }}</option>
+                        <option value="draw" {% if match['result'] == 'draw' %}selected{% endif %}>{{ t('dashboard.draw') }}</option>
+                        <option value="away" {% if match['result'] == 'away' %}selected{% endif %}>{{ t('dashboard.away_win') }}</option>
+                    </select>
+                    <button class="button secondary" type="submit">{{ t('admin.update_result') }}</button>
+                </div>
+            </form>
         </article>
     {% else %}
         <article class="empty-state">{{ t('admin.no_matches') }}</article>
