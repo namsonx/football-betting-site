@@ -10,6 +10,9 @@
         <p>{{ t('auth.dashboard_hint') }}</p>
     </div>
     <form class="auth-card" method="post">
+        {% if next_url %}
+            <input type="hidden" name="next" value="{{ next_url }}">
+        {% endif %}
         <label for="username">{{ t('auth.username') }}</label>
         <input id="username" name="username" type="text" placeholder="MU mãi đỉnh" required>
 

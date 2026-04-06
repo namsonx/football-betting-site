@@ -21,13 +21,17 @@
         <p class="hero-text">{{ t('home.description') }}</p>
         <div class="hero-actions">
             <a class="button primary" href="{{ url_for('register') }}">{{ t('home.start_credits') }}</a>
-            <a class="button secondary" href="{{ url_for('login') }}">{{ t('home.sign_in') }}</a>
+            {% if not current_user %}
+                <a class="button secondary" href="{{ url_for('login') }}">{{ t('home.sign_in') }}</a>
+            {% endif %}
         </div>
     </div>
     <div class="hero-panel">
         <p class="panel-label">{{ t('home.today_matches') }}</p>
         {% for match in today_matches %}
-            <article class="fixture-card compact">
+            {% set bet_target = url_for('dashboard', match_id=match['id']) %}
+            {% set match_target = bet_target if current_user else url_for('login', next=bet_target) %}
+            <a class="fixture-card compact home-match-link" href="{{ match_target }}">
                 <div>
                     <h3>{{ match['home_team'] }} {{ t('common.vs') }} {{ match['away_team'] }}</h3>
                     <p>{{ match['stadium'] }}</p>
@@ -36,7 +40,7 @@
                     <span>{{ match['kickoff_at']|kickoff }}</span>
                     <span>{{ match['home_odds'] }} / {{ match['draw_odds'] }} / {{ match['away_odds'] }}</span>
                 </div>
-            </article>
+            </a>
         {% else %}
             <article class="empty-state">{{ t('home.no_today_matches') }}</article>
         {% endfor %}

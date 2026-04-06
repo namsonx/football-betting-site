@@ -28,6 +28,10 @@ def t(key: str, **kwargs) -> str:
     return text
 
 
+def is_safe_next(next_url: str) -> bool:
+    return bool(next_url) and next_url.startswith("/") and not next_url.startswith("//")
+
+
 @app.before_request
 def set_default_language():
     if session.get("lang") not in SUPPORTED_LANGS:
@@ -330,13 +334,18 @@ def register():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    next_url = request.args.get("next", "").strip()
+
     if session.get("user_id"):
         user = get_current_user()
         if user and user["role"] == "admin":
             return redirect(url_for("admin_dashboard"))
+        if is_safe_next(next_url):
+            return redirect(next_url)
         return redirect(url_for("dashboard"))
 
     if request.method == "POST":
+        next_url = request.form.get("next", "").strip() or request.args.get("next", "").strip()
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         user = BETTING_DB.get_db().execute(
@@ -354,9 +363,11 @@ def login():
             flash(t("flash.login_success"), "success")
             if user["role"] == "admin":
                 return redirect(url_for("admin_dashboard"))
+            if is_safe_next(next_url):
+                return redirect(next_url)
             return redirect(url_for("dashboard"))
 
-    return render_template("login.html")
+    return render_template("login.html", next_url=next_url)
 
 
 @app.route("/logout")
@@ -420,12 +431,18 @@ def dashboard():
         (user["id"],),
     ).fetchone()
 
+    selected_match_id = None
+    match_id_param = request.args.get("match_id", "").strip()
+    if match_id_param.isdigit():
+        selected_match_id = int(match_id_param)
+
     return render_template(
         "dashboard.html",
         user=user,
         upcoming_matches=upcoming_matches,
         recent_bets=recent_bets,
         stats=stats,
+        selected_match_id=selected_match_id,
     )
 
 

@@ -42,7 +42,7 @@
 
 <section class="fixtures-grid">
     {% for match in upcoming_matches %}
-        <article class="fixture-card">
+        <article id="match-{{ match['id'] }}" class="fixture-card{% if selected_match_id == match['id'] %} focus-match{% endif %}">
             <div class="fixture-topline">
                 <div>
                     <p class="fixture-time">{{ match['kickoff_at']|kickoff }}</p>
