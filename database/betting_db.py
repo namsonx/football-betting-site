@@ -71,6 +71,18 @@ class BettingDB():
                 FOREIGN KEY(user_id) REFERENCES users(id),
                 FOREIGN KEY(match_id) REFERENCES matches(id)
             );
+
+            CREATE TABLE IF NOT EXISTS activities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                activity_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                details TEXT,
+                related_bet_id INTEGER,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id),
+                FOREIGN KEY(related_bet_id) REFERENCES bets(id)
+            );
             """
         )
         self._ensure_users_columns(connection)
@@ -148,7 +160,7 @@ class BettingDB():
         connection.commit()
         connection.close()
 
-    def settle_due_matches(self) -> int:
+    def settle_due_matches(self, collect_events: bool = False):
         db = self.get_db()
         due_matches = db.execute(
             """
@@ -162,6 +174,7 @@ class BettingDB():
 
         settled_count = 0
         settled_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+        settlement_events = []
 
         for match in due_matches:
             kickoff = datetime.fromisoformat(match["kickoff_at"])
@@ -185,7 +198,13 @@ class BettingDB():
             )
 
             bets = db.execute(
-                "SELECT id, user_id, outcome, odds, stake FROM bets WHERE match_id = ? AND status = 'open'",
+                """
+                SELECT bets.id, bets.user_id, bets.outcome, bets.odds, bets.stake,
+                       matches.home_team, matches.away_team
+                FROM bets
+                JOIN matches ON matches.id = bets.match_id
+                WHERE bets.match_id = ? AND bets.status = 'open'
+                """,
                 (match["id"],),
             ).fetchall()
 
@@ -205,7 +224,22 @@ class BettingDB():
                         (payout, bet["user_id"]),
                     )
 
+                if collect_events:
+                    settlement_events.append(
+                        {
+                            "user_id": bet["user_id"],
+                            "bet_id": bet["id"],
+                            "fixture": f"{bet['home_team']} vs {bet['away_team']}",
+                            "status": bet_status,
+                            "payout": payout,
+                            "stake": bet["stake"],
+                            "settled_at": settled_at,
+                        }
+                    )
+
             settled_count += 1
 
         db.commit()
+        if collect_events:
+            return settled_count, settlement_events
         return settled_count

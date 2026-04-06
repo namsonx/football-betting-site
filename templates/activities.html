@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('activities.title') }} · KickOff Exchange{% endblock %}
+
+{% block content %}
+<section class="section-head">
+    <div>
+        <p class="eyebrow">{{ t('activities.eyebrow') }}</p>
+        <h1>{{ t('activities.title') }}</h1>
+        <p>{{ t('activities.subtitle') }}</p>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>{{ t('activities.total') }}</span>
+        <strong>{{ summary['total'] }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('activities.placed') }}</span>
+        <strong>{{ summary['placed'] }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('activities.settled') }}</span>
+        <strong>{{ summary['settled'] }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('activities.profile') }}</span>
+        <strong>{{ summary['profile_updates'] }}</strong>
+    </article>
+</section>
+
+<section class="table-card filter-card">
+    <form class="filter-form" method="get" action="{{ url_for('activities') }}">
+        <label>
+            {{ t('activities.filter_type') }}
+            <select name="type">
+                <option value="all" {% if activity_type == 'all' %}selected{% endif %}>{{ t('activities.type_all') }}</option>
+                <option value="bet_placed" {% if activity_type == 'bet_placed' %}selected{% endif %}>{{ t('activities.type_bet_placed') }}</option>
+                <option value="bet_settled" {% if activity_type == 'bet_settled' %}selected{% endif %}>{{ t('activities.type_bet_settled') }}</option>
+                <option value="profile_update" {% if activity_type == 'profile_update' %}selected{% endif %}>{{ t('activities.type_profile_update') }}</option>
+            </select>
+        </label>
+        <button class="button secondary" type="submit">{{ t('activities.apply_filters') }}</button>
+    </form>
+</section>
+
+<section class="table-card">
+    <div class="activity-timeline">
+        {% for item in activities %}
+            <article class="activity-item">
+                <div class="activity-top">
+                    <span class="status status-open">{{ t('activities.type_' ~ item['activity_type']) }}</span>
+                    <time>{{ item['created_at']|kickoff }}</time>
+                </div>
+                <h3>{{ item['title'] }}</h3>
+                {% if item['details'] %}
+                <p>{{ item['details'] }}</p>
+                {% endif %}
+            </article>
+        {% else %}
+            <article class="empty-state">{{ t('activities.no_data') }}</article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

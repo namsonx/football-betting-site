@@ -11,6 +11,53 @@
     </div>
 </section>
 
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>{{ t('history.total_bets') }}</span>
+        <strong>{{ history_stats['total'] }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('history.open_bets') }}</span>
+        <strong>{{ history_stats['open_count'] }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('history.win_rate') }}</span>
+        <strong>
+            {% if history_stats['total'] %}
+                {{ ((history_stats['won_count'] * 100.0) / history_stats['total'])|round(1) }}%
+            {% else %}
+                0%
+            {% endif %}
+        </strong>
+    </article>
+    <article class="stat-card">
+        <span>{{ t('history.net_profit') }}</span>
+        <strong>{{ net_profit|money }} cr</strong>
+    </article>
+</section>
+
+<section class="table-card filter-card">
+    <form class="filter-form" method="get" action="{{ url_for('history') }}">
+        <label>
+            {{ t('history.filter_status') }}
+            <select name="status">
+                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>{{ t('history.status_all') }}</option>
+                <option value="open" {% if status_filter == 'open' %}selected{% endif %}>{{ t('status.open') }}</option>
+                <option value="won" {% if status_filter == 'won' %}selected{% endif %}>{{ t('status.won') }}</option>
+                <option value="lost" {% if status_filter == 'lost' %}selected{% endif %}>{{ t('status.lost') }}</option>
+            </select>
+        </label>
+        <label>
+            {{ t('history.filter_sort') }}
+            <select name="sort">
+                <option value="newest" {% if sort_order == 'newest' %}selected{% endif %}>{{ t('history.sort_newest') }}</option>
+                <option value="oldest" {% if sort_order == 'oldest' %}selected{% endif %}>{{ t('history.sort_oldest') }}</option>
+            </select>
+        </label>
+        <button class="button secondary" type="submit">{{ t('history.apply_filters') }}</button>
+    </form>
+</section>
+
 <section class="table-card">
     <table>
         <thead>

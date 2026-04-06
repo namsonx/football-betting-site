@@ -90,6 +90,29 @@ def get_current_user():
         (user_id,),
     ).fetchone()
 
+def log_activity(
+    user_id: int,
+    activity_type: str,
+    title: str,
+    details: str = "",
+    related_bet_id=None,
+    created_at: str | None = None,
+) -> None:
+    db = BETTING_DB.get_db()
+    db.execute(
+        """
+        INSERT INTO activities (user_id, activity_type, title, details, related_bet_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            activity_type,
+            title,
+            details,
+            related_bet_id,
+            created_at or datetime.now(UTC).replace(microsecond=0).isoformat(),
+        ),
+    )
 
 @app.context_processor
 def inject_globals():
@@ -347,16 +370,36 @@ def place_bet():
     }
     placed_at = datetime.now(UTC).replace(microsecond=0).isoformat()
 
-    db.execute(
+    cursor = db.execute(
         """
         INSERT INTO bets (user_id, match_id, outcome, odds, stake, placed_at)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
         (user["id"], match_id, outcome, odds_map[outcome], stake, placed_at),
     )
+    bet_id = cursor.lastrowid
     db.execute(
         "UPDATE users SET balance = balance - ? WHERE id = ?",
         (stake, user["id"]),
+    )
+    outcome_label = {
+        "home": t("dashboard.home_win"),
+        "draw": t("dashboard.draw"),
+        "away": t("dashboard.away_win"),
+    }[outcome]
+    log_activity(
+        user_id=user["id"],
+        activity_type="bet_placed",
+        title=t("activity.bet_placed_title"),
+        details=t(
+            "activity.bet_placed_details",
+            fixture=f"{match['home_team']} vs {match['away_team']}",
+            outcome=outcome_label,
+            stake=f"{stake:.2f}",
+            odds=f"{odds_map[outcome]:.2f}",
+        ),
+        related_bet_id=bet_id,
+        created_at=placed_at,
     )
     db.commit()
 
@@ -384,6 +427,12 @@ def update_profile():
         WHERE id = ?
         """,
         (full_name or None, email or None, phone or None, user["id"]),
+    )
+    log_activity(
+        user_id=user["id"],
+        activity_type="profile_update",
+        title=t("activity.profile_updated_title"),
+        details=t("activity.profile_updated_details"),
     )
     db.commit()
     flash(t("flash.profile_updated"), "success")
@@ -493,23 +542,127 @@ def admin_update_user():
 @app.route("/history")
 @normal_required
 def history():
-    bets = BETTING_DB.get_db().execute(
-        """
+    user_id = session["user_id"]
+    db = BETTING_DB.get_db()
+
+    status_filter = request.args.get("status", "all").strip()
+    valid_status = {"all", "open", "won", "lost"}
+    if status_filter not in valid_status:
+        status_filter = "all"
+
+    sort_order = request.args.get("sort", "newest").strip()
+    if sort_order not in {"newest", "oldest"}:
+        sort_order = "newest"
+
+    where_sql = "WHERE bets.user_id = ?"
+    params = [user_id]
+    if status_filter != "all":
+        where_sql += " AND bets.status = ?"
+        params.append(status_filter)
+
+    order_sql = "DESC" if sort_order == "newest" else "ASC"
+    bets = db.execute(
+        f"""
         SELECT bets.*, matches.home_team, matches.away_team, matches.score_home, matches.score_away, matches.result
         FROM bets
         JOIN matches ON matches.id = bets.match_id
-        WHERE bets.user_id = ?
-        ORDER BY bets.placed_at DESC
+        {where_sql}
+        ORDER BY bets.placed_at {order_sql}
         """,
-        (session["user_id"],),
+        tuple(params),
     ).fetchall()
-    return render_template("history.html", bets=bets)
 
+    history_stats = db.execute(
+        """
+        SELECT
+            COUNT(*) AS total,
+            COALESCE(SUM(stake), 0) AS total_stake,
+            COALESCE(SUM(CASE WHEN status = 'won' THEN payout ELSE 0 END), 0) AS total_payout,
+            COALESCE(SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END), 0) AS open_count,
+            COALESCE(SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END), 0) AS won_count,
+            COALESCE(SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END), 0) AS lost_count
+        FROM bets
+        WHERE user_id = ?
+        """,
+        (user_id,),
+    ).fetchone()
+
+    return render_template(
+        "history.html",
+        bets=bets,
+        status_filter=status_filter,
+        sort_order=sort_order,
+        history_stats=history_stats,
+        net_profit=float(history_stats["total_payout"]) - float(history_stats["total_stake"]),
+    )
+
+@app.route("/activities")
+@normal_required
+def activities():
+    user_id = session["user_id"]
+    db = BETTING_DB.get_db()
+    activity_type = request.args.get("type", "all").strip()
+    valid_types = {"all", "bet_placed", "bet_settled", "profile_update"}
+    if activity_type not in valid_types:
+        activity_type = "all"
+
+    where_sql = "WHERE user_id = ?"
+    params = [user_id]
+    if activity_type != "all":
+        where_sql += " AND activity_type = ?"
+        params.append(activity_type)
+
+    rows = db.execute(
+        f"""
+        SELECT *
+        FROM activities
+        {where_sql}
+        ORDER BY created_at DESC
+        LIMIT 120
+        """,
+        tuple(params),
+    ).fetchall()
+
+    summary = db.execute(
+        """
+        SELECT
+            COUNT(*) AS total,
+            COALESCE(SUM(CASE WHEN activity_type = 'bet_placed' THEN 1 ELSE 0 END), 0) AS placed,
+            COALESCE(SUM(CASE WHEN activity_type = 'bet_settled' THEN 1 ELSE 0 END), 0) AS settled,
+            COALESCE(SUM(CASE WHEN activity_type = 'profile_update' THEN 1 ELSE 0 END), 0) AS profile_updates
+        FROM activities
+        WHERE user_id = ?
+        """,
+        (user_id,),
+    ).fetchone()
+
+    return render_template(
+        "activities.html",
+        activities=rows,
+        activity_type=activity_type,
+        summary=summary,
+    )
 
 @app.route("/settle", methods=["POST"])
 @normal_required
 def settle():
-    settled_count = BETTING_DB.settle_due_matches()
+    settled_count, events = BETTING_DB.settle_due_matches(collect_events=True)
+    for event in events:
+        result_label = t("status.won") if event["status"] == "won" else t("status.lost")
+        log_activity(
+            user_id=event["user_id"],
+            activity_type="bet_settled",
+            title=t("activity.bet_settled_title"),
+            details=t(
+                "activity.bet_settled_details",
+                fixture=event["fixture"],
+                result=result_label,
+                payout=f"{event['payout']:.2f}",
+            ),
+            related_bet_id=event["bet_id"],
+            created_at=event["settled_at"],
+        )
+    BETTING_DB.get_db().commit()
     if settled_count:
         flash(t("flash.settled_matches", count=settled_count), "success")
     else:
