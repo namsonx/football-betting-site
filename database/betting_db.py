@@ -3,10 +3,11 @@ import sqlite3
 
 from JsonPreprocessor import CJsonPreprocessor
 from flask import g
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "betting.db")
+APP_TIMEZONE = timezone(timedelta(hours=7))
 
 languages_path = os.path.join(BASE_DIR, "../config", "languages.jsonp")
 json_preprocessor = CJsonPreprocessor(syntax="python")
@@ -193,7 +194,7 @@ class BettingDB():
             connection.close()
             return
 
-        now = datetime.now(UTC).replace(microsecond=0)
+        now = datetime.now(APP_TIMEZONE).replace(microsecond=0)
         fixtures = [
             ("Arsenal", "Liverpool", now - timedelta(hours=6), "North Bank Arena", 2.15, 3.35, 2.95, 0.5, 1.95, 1.95, 0.75, 2.35, 1.55),
             ("Barcelona", "Atletico Madrid", now + timedelta(hours=18), "Catalunya Dome", 1.92, 3.45, 3.8, 0.5, 1.96, 1.94, 0.75, 2.28, 1.60),
@@ -263,11 +264,11 @@ class BettingDB():
             WHERE status = 'scheduled' AND kickoff_at <= ?
             ORDER BY kickoff_at ASC
             """,
-            (datetime.now(UTC).isoformat(),),
+            (datetime.now(APP_TIMEZONE).isoformat(),),
         ).fetchall()
 
         settled_count = 0
-        settled_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+        settled_at = datetime.now(APP_TIMEZONE).replace(microsecond=0).isoformat()
         settlement_events = []
 
         for match in due_matches:

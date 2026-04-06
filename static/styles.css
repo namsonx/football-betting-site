@@ -136,6 +136,15 @@ a {
     color: var(--text);
 }
 
+.danger {
+    border-color: rgba(255, 125, 125, 0.45);
+    color: #ffd5d5;
+}
+
+.danger:hover {
+    background: rgba(255, 125, 125, 0.12);
+}
+
 .user-pill {
     padding: 10px 14px;
     border: 1px solid rgba(255, 255, 255, 0.1);

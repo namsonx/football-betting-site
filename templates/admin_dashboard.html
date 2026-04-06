@@ -150,7 +150,18 @@
                 <input name="email" type="email" value="{{ managed_user['email'] or '' }}">
                 <label>{{ t('profile.phone') }}</label>
                 <input name="phone" type="text" value="{{ managed_user['phone'] or '' }}">
-                <button class="button primary" type="submit">{{ t('admin.update_user') }}</button>
+                <div class="stake-row">
+                    <button class="button primary" type="submit">{{ t('admin.update_user') }}</button>
+                    <button
+                        class="button secondary danger"
+                        type="submit"
+                        formaction="{{ url_for('admin_delete_user') }}"
+                        formmethod="post"
+                        onclick="return confirm('{{ t('admin.delete_user_confirm', username=managed_user['username']) }}');"
+                    >
+                        {{ t('admin.delete_user') }}
+                    </button>
+                </div>
             </form>
         </article>
     {% else %}

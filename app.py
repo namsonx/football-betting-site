@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import Flask, flash, g, redirect, render_template, request, session, url_for
@@ -9,6 +9,7 @@ from database.betting_db import DATABASE_PATH, SUPPORTED_LANGS, TRANSLATIONS, Be
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BETTING_DB = BettingDB()
+APP_TIMEZONE = timezone(timedelta(hours=7))
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("BETTING_APP_SECRET", "dev-secret-change-me")
@@ -114,7 +115,7 @@ def log_activity(
             title,
             details,
             related_bet_id,
-            created_at or datetime.now(UTC).replace(microsecond=0).isoformat(),
+            created_at or datetime.now(APP_TIMEZONE).replace(microsecond=0).isoformat(),
         ),
     )
 
@@ -128,7 +129,7 @@ def settle_match_with_result(match_id: int, result: str, score_home: int, score_
     if match is None:
         return None
 
-    settled_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+    settled_at = datetime.now(APP_TIMEZONE).replace(microsecond=0).isoformat()
     bets = db.execute(
         """
         SELECT id, user_id, bet_type, outcome, handicap_side, handicap_line, odds, stake, status, payout
@@ -195,7 +196,7 @@ def settle_match_with_result(match_id: int, result: str, score_home: int, score_
 def inject_globals():
     return {
         "current_user": get_current_user(),
-        "now_iso": datetime.now(UTC).isoformat(),
+        "now_iso": datetime.now(APP_TIMEZONE).isoformat(),
         "current_lang": get_lang(),
         "t": t,
     }
@@ -208,7 +209,12 @@ def format_money(value):
 
 @app.template_filter("kickoff")
 def format_kickoff(value):
-    return datetime.fromisoformat(value).strftime("%d %b %Y, %H:%M UTC")
+    kickoff_time = datetime.fromisoformat(value)
+    if kickoff_time.tzinfo is None:
+        kickoff_time = kickoff_time.replace(tzinfo=APP_TIMEZONE)
+    else:
+        kickoff_time = kickoff_time.astimezone(APP_TIMEZONE)
+    return kickoff_time.strftime("%d %b %Y, %H:%M UTC+07")
 
 
 @app.route("/")
@@ -231,7 +237,7 @@ def index():
         page = 1
     page = max(1, page)
 
-    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(APP_TIMEZONE).replace(hour=0, minute=0, second=0, microsecond=0)
     tomorrow_start = today_start + timedelta(days=1)
 
     total_today = db.execute(
@@ -316,7 +322,7 @@ def register():
                     (
                         username,
                         generate_password_hash(password),
-                        datetime.now(UTC).replace(microsecond=0).isoformat(),
+                        datetime.now(APP_TIMEZONE).replace(microsecond=0).isoformat(),
                         role,
                         full_name,
                         email,
@@ -514,7 +520,7 @@ def place_bet():
         flash(t("flash.match_unavailable"), "danger")
         return redirect(url_for("dashboard"))
 
-    if datetime.fromisoformat(match["kickoff_at"]) <= datetime.now(UTC):
+    if datetime.fromisoformat(match["kickoff_at"]) <= datetime.now(APP_TIMEZONE):
         flash(t("flash.betting_closed"), "danger")
         return redirect(url_for("dashboard"))
 
@@ -555,7 +561,7 @@ def place_bet():
                 odds = float(match["handicap_ratio2_away_odds"])
         outcome = "handicap"
 
-    placed_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+    placed_at = datetime.now(APP_TIMEZONE).replace(microsecond=0).isoformat()
 
     cursor = db.execute(
         """
@@ -903,6 +909,62 @@ def admin_update_user():
     return redirect(url_for("admin_dashboard"))
 
 
+@app.route("/admin/users/delete", methods=["POST"])
+@admin_required
+def admin_delete_user():
+    db = BETTING_DB.get_db()
+    current = get_current_user()
+
+    try:
+        target_user_id = int(request.form.get("user_id", "0"))
+    except ValueError:
+        flash(t("flash.invalid_user_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    if target_user_id == current["id"]:
+        flash(t("flash.cannot_delete_self"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    target_user = db.execute(
+        "SELECT id, role FROM users WHERE id = ?",
+        (target_user_id,),
+    ).fetchone()
+    if target_user is None:
+        flash(t("flash.invalid_user_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    if target_user["role"] == "admin":
+        admin_count = db.execute(
+            "SELECT COUNT(*) AS total FROM users WHERE role = 'admin'"
+        ).fetchone()["total"]
+        if admin_count <= 1:
+            flash(t("flash.cannot_delete_last_admin"), "danger")
+            return redirect(url_for("admin_dashboard"))
+
+    bet_ids = [
+        row["id"]
+        for row in db.execute(
+            "SELECT id FROM bets WHERE user_id = ?",
+            (target_user_id,),
+        ).fetchall()
+    ]
+
+    if bet_ids:
+        placeholders = ",".join("?" for _ in bet_ids)
+        db.execute(
+            f"DELETE FROM activities WHERE related_bet_id IN ({placeholders})",
+            tuple(bet_ids),
+        )
+
+    db.execute("DELETE FROM activities WHERE user_id = ?", (target_user_id,))
+    db.execute("DELETE FROM bets WHERE user_id = ?", (target_user_id,))
+    db.execute("DELETE FROM users WHERE id = ?", (target_user_id,))
+    db.commit()
+
+    flash(t("flash.user_deleted"), "success")
+    return redirect(url_for("admin_dashboard"))
+
+
 @app.route("/history")
 @normal_required
 def history():
@@ -1039,4 +1101,8 @@ BETTING_DB.seed_matches()
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(
+        host=os.environ.get("BETTING_APP_HOST", "0.0.0.0"),
+        port=int(os.environ.get("BETTING_APP_PORT", "5000")),
+        debug=os.environ.get("BETTING_APP_DEBUG", "1") == "1",
+    )
