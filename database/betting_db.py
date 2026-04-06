@@ -50,6 +50,18 @@ class BettingDB():
                 home_odds REAL NOT NULL,
                 draw_odds REAL NOT NULL,
                 away_odds REAL NOT NULL,
+                handicap_ratio1_line REAL NOT NULL DEFAULT 0.5,
+                handicap_ratio1_home_odds REAL NOT NULL DEFAULT 1.95,
+                handicap_ratio1_away_odds REAL NOT NULL DEFAULT 1.95,
+                handicap_ratio2_line REAL NOT NULL DEFAULT 0.75,
+                handicap_ratio2_home_odds REAL NOT NULL DEFAULT 2.10,
+                handicap_ratio2_away_odds REAL NOT NULL DEFAULT 1.75,
+                handicap1_side TEXT NOT NULL DEFAULT 'home',
+                handicap1_line REAL NOT NULL DEFAULT -0.5,
+                handicap1_odds REAL NOT NULL DEFAULT 1.95,
+                handicap2_side TEXT NOT NULL DEFAULT 'away',
+                handicap2_line REAL NOT NULL DEFAULT 0.5,
+                handicap2_odds REAL NOT NULL DEFAULT 1.95,
                 status TEXT NOT NULL DEFAULT 'scheduled',
                 score_home INTEGER,
                 score_away INTEGER,
@@ -61,7 +73,10 @@ class BettingDB():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 match_id INTEGER NOT NULL,
+                bet_type TEXT NOT NULL DEFAULT 'result',
                 outcome TEXT NOT NULL,
+                handicap_side TEXT,
+                handicap_line REAL,
                 odds REAL NOT NULL,
                 stake REAL NOT NULL,
                 status TEXT NOT NULL DEFAULT 'open',
@@ -86,6 +101,8 @@ class BettingDB():
             """
         )
         self._ensure_users_columns(connection)
+        self._ensure_matches_columns(connection)
+        self._ensure_bets_columns(connection)
         connection.commit()
         connection.close()
 
@@ -109,6 +126,53 @@ class BettingDB():
         if not self._column_exists(connection, "users", "phone"):
             connection.execute("ALTER TABLE users ADD COLUMN phone TEXT")
 
+    def _ensure_matches_columns(self, connection: sqlite3.Connection) -> None:
+        if not self._column_exists(connection, "matches", "handicap_ratio1_line"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap_ratio1_line REAL NOT NULL DEFAULT 0.5")
+
+        if not self._column_exists(connection, "matches", "handicap_ratio1_home_odds"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap_ratio1_home_odds REAL NOT NULL DEFAULT 1.95")
+
+        if not self._column_exists(connection, "matches", "handicap_ratio1_away_odds"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap_ratio1_away_odds REAL NOT NULL DEFAULT 1.95")
+
+        if not self._column_exists(connection, "matches", "handicap_ratio2_line"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap_ratio2_line REAL NOT NULL DEFAULT 0.75")
+
+        if not self._column_exists(connection, "matches", "handicap_ratio2_home_odds"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap_ratio2_home_odds REAL NOT NULL DEFAULT 2.10")
+
+        if not self._column_exists(connection, "matches", "handicap_ratio2_away_odds"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap_ratio2_away_odds REAL NOT NULL DEFAULT 1.75")
+
+        if not self._column_exists(connection, "matches", "handicap1_side"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap1_side TEXT NOT NULL DEFAULT 'home'")
+
+        if not self._column_exists(connection, "matches", "handicap1_line"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap1_line REAL NOT NULL DEFAULT -0.5")
+
+        if not self._column_exists(connection, "matches", "handicap1_odds"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap1_odds REAL NOT NULL DEFAULT 1.95")
+
+        if not self._column_exists(connection, "matches", "handicap2_side"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap2_side TEXT NOT NULL DEFAULT 'away'")
+
+        if not self._column_exists(connection, "matches", "handicap2_line"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap2_line REAL NOT NULL DEFAULT 0.5")
+
+        if not self._column_exists(connection, "matches", "handicap2_odds"):
+            connection.execute("ALTER TABLE matches ADD COLUMN handicap2_odds REAL NOT NULL DEFAULT 1.95")
+
+    def _ensure_bets_columns(self, connection: sqlite3.Connection) -> None:
+        if not self._column_exists(connection, "bets", "bet_type"):
+            connection.execute("ALTER TABLE bets ADD COLUMN bet_type TEXT NOT NULL DEFAULT 'result'")
+
+        if not self._column_exists(connection, "bets", "handicap_side"):
+            connection.execute("ALTER TABLE bets ADD COLUMN handicap_side TEXT")
+
+        if not self._column_exists(connection, "bets", "handicap_line"):
+            connection.execute("ALTER TABLE bets ADD COLUMN handicap_line REAL")
+
     def get_db(self) -> sqlite3.Connection:
         if "db" not in g:
             g.db = sqlite3.connect(self.db_path)
@@ -131,18 +195,22 @@ class BettingDB():
 
         now = datetime.now(UTC).replace(microsecond=0)
         fixtures = [
-            ("Arsenal", "Liverpool", now - timedelta(hours=6), "North Bank Arena", 2.15, 3.35, 2.95),
-            ("Barcelona", "Atletico Madrid", now + timedelta(hours=18), "Catalunya Dome", 1.92, 3.45, 3.8),
-            ("Bayern Munich", "Borussia Dortmund", now + timedelta(days=1, hours=4), "Bavaria Park", 1.88, 3.7, 4.05),
-            ("Inter Milan", "Juventus", now + timedelta(days=2, hours=2), "San Siro District", 2.32, 3.15, 3.0),
-            ("PSG", "Monaco", now + timedelta(days=3), "Paris Lights Stadium", 1.7, 3.9, 4.75),
+            ("Arsenal", "Liverpool", now - timedelta(hours=6), "North Bank Arena", 2.15, 3.35, 2.95, 0.5, 1.95, 1.95, 0.75, 2.35, 1.55),
+            ("Barcelona", "Atletico Madrid", now + timedelta(hours=18), "Catalunya Dome", 1.92, 3.45, 3.8, 0.5, 1.96, 1.94, 0.75, 2.28, 1.60),
+            ("Bayern Munich", "Borussia Dortmund", now + timedelta(days=1, hours=4), "Bavaria Park", 1.88, 3.7, 4.05, 1.0, 1.93, 1.97, 1.25, 2.18, 1.67),
+            ("Inter Milan", "Juventus", now + timedelta(days=2, hours=2), "San Siro District", 2.32, 3.15, 3.0, 0.25, 1.91, 1.99, 0.5, 2.08, 1.76),
+            ("PSG", "Monaco", now + timedelta(days=3), "Paris Lights Stadium", 1.7, 3.9, 4.75, 1.25, 1.95, 1.95, 1.5, 2.24, 1.62),
         ]
 
         cursor.executemany(
             """
             INSERT INTO matches (
-                home_team, away_team, kickoff_at, stadium, home_odds, draw_odds, away_odds
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                home_team, away_team, kickoff_at, stadium, home_odds, draw_odds, away_odds,
+                handicap_ratio1_line, handicap_ratio1_home_odds, handicap_ratio1_away_odds,
+                handicap_ratio2_line, handicap_ratio2_home_odds, handicap_ratio2_away_odds,
+                handicap1_side, handicap1_line, handicap1_odds,
+                handicap2_side, handicap2_line, handicap2_odds
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -153,8 +221,34 @@ class BettingDB():
                     home_odds,
                     draw_odds,
                     away_odds,
+                    handicap_ratio1_line,
+                    handicap_ratio1_home_odds,
+                    handicap_ratio1_away_odds,
+                    handicap_ratio2_line,
+                    handicap_ratio2_home_odds,
+                    handicap_ratio2_away_odds,
+                    "home",
+                    -float(handicap_ratio1_line),
+                    handicap_ratio1_home_odds,
+                    "away",
+                    float(handicap_ratio1_line),
+                    handicap_ratio1_away_odds,
                 )
-                for home_team, away_team, kickoff_at, stadium, home_odds, draw_odds, away_odds in fixtures
+                for (
+                    home_team,
+                    away_team,
+                    kickoff_at,
+                    stadium,
+                    home_odds,
+                    draw_odds,
+                    away_odds,
+                    handicap_ratio1_line,
+                    handicap_ratio1_home_odds,
+                    handicap_ratio1_away_odds,
+                    handicap_ratio2_line,
+                    handicap_ratio2_home_odds,
+                    handicap_ratio2_away_odds,
+                ) in fixtures
             ],
         )
         connection.commit()
@@ -199,7 +293,8 @@ class BettingDB():
 
             bets = db.execute(
                 """
-                SELECT bets.id, bets.user_id, bets.outcome, bets.odds, bets.stake,
+                SELECT bets.id, bets.user_id, bets.bet_type, bets.outcome, bets.handicap_side, bets.handicap_line,
+                       bets.odds, bets.stake,
                        matches.home_team, matches.away_team
                 FROM bets
                 JOIN matches ON matches.id = bets.match_id
@@ -209,7 +304,13 @@ class BettingDB():
             ).fetchall()
 
             for bet in bets:
-                won = bet["outcome"] == result
+                if bet["bet_type"] == "result":
+                    won = bet["outcome"] == result
+                else:
+                    if bet["handicap_side"] == "home":
+                        won = (home_score + float(bet["handicap_line"])) > away_score
+                    else:
+                        won = (away_score + float(bet["handicap_line"])) > home_score
                 payout = round(bet["stake"] * bet["odds"], 2) if won else 0.0
                 bet_status = "won" if won else "lost"
 

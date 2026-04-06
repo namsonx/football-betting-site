@@ -77,7 +77,14 @@
                 <tr>
                     <td>{{ bet['placed_at']|kickoff }}</td>
                     <td>{{ bet['home_team'] }} {{ t('common.vs') }} {{ bet['away_team'] }}</td>
-                    <td>{{ bet['outcome']|upper }}</td>
+                    <td>
+                        {% if bet['bet_type'] == 'handicap' %}
+                            {% set b_side = t('dashboard.home_team_short') if bet['handicap_side'] == 'home' else t('dashboard.away_team_short') %}
+                            {{ t('dashboard.handicap_option_label', side=b_side, line="%+.2f"|format(bet['handicap_line'])) }}
+                        {% else %}
+                            {{ bet['outcome']|upper }}
+                        {% endif %}
+                    </td>
                     <td>{{ bet['odds'] }}</td>
                     <td>{{ bet['stake']|money }}</td>
                     <td><span class="status status-{{ bet['status'] }}">{{ t('status.' ~ bet['status']) }}</span></td>

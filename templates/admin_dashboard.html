@@ -18,6 +18,37 @@
     </div>
 </section>
 
+<section class="table-card">
+    <form class="bet-form" method="post" action="{{ url_for('admin_create_match') }}">
+        <p class="panel-label">{{ t('admin.create_match_title') }}</p>
+        <label>{{ t('admin.home_team') }}</label>
+        <input name="home_team" type="text" required>
+        <label>{{ t('admin.away_team') }}</label>
+        <input name="away_team" type="text" required>
+        <label>{{ t('admin.kickoff') }}</label>
+        <input name="kickoff_at" type="text" placeholder="2026-04-06T19:30:00+00:00" required>
+        <label>{{ t('admin.stadium') }}</label>
+        <input name="stadium" type="text" required>
+        <div class="stake-row">
+            <input name="home_odds" type="number" min="1.01" step="0.01" placeholder="Home odds" required>
+            <input name="draw_odds" type="number" min="1.01" step="0.01" placeholder="Draw odds" required>
+            <input name="away_odds" type="number" min="1.01" step="0.01" placeholder="Away odds" required>
+            <button class="button primary" type="submit">{{ t('admin.create_match') }}</button>
+        </div>
+        <p class="panel-label">{{ t('admin.handicap_options') }}</p>
+        <div class="stake-row">
+            <input name="handicap_ratio1_line" type="number" min="0.25" step="0.25" placeholder="Ratio 0.5" required>
+            <input name="handicap_ratio1_home_odds" type="number" min="1.01" step="0.01" placeholder="Home odds" required>
+            <input name="handicap_ratio1_away_odds" type="number" min="1.01" step="0.01" placeholder="Away odds" required>
+        </div>
+        <div class="stake-row">
+            <input name="handicap_ratio2_line" type="number" min="0.25" step="0.25" placeholder="Ratio 0.75" required>
+            <input name="handicap_ratio2_home_odds" type="number" min="1.01" step="0.01" placeholder="Home odds" required>
+            <input name="handicap_ratio2_away_odds" type="number" min="1.01" step="0.01" placeholder="Away odds" required>
+        </div>
+    </form>
+</section>
+
 <section class="fixtures-grid">
     {% for match in matches %}
         <article class="fixture-card">
@@ -52,6 +83,17 @@
                         <option value="settled" {% if match['status'] == 'settled' %}selected{% endif %}>settled</option>
                     </select>
                     <button class="button primary" type="submit">{{ t('admin.update_match') }}</button>
+                </div>
+                <p class="panel-label">{{ t('admin.handicap_options') }}</p>
+                <div class="stake-row">
+                    <input name="handicap_ratio1_line" type="number" min="0.25" step="0.25" value="{{ match['handicap_ratio1_line'] }}" required>
+                    <input name="handicap_ratio1_home_odds" type="number" min="1.01" step="0.01" value="{{ match['handicap_ratio1_home_odds'] }}" required>
+                    <input name="handicap_ratio1_away_odds" type="number" min="1.01" step="0.01" value="{{ match['handicap_ratio1_away_odds'] }}" required>
+                </div>
+                <div class="stake-row">
+                    <input name="handicap_ratio2_line" type="number" min="0.25" step="0.25" value="{{ match['handicap_ratio2_line'] }}" required>
+                    <input name="handicap_ratio2_home_odds" type="number" min="1.01" step="0.01" value="{{ match['handicap_ratio2_home_odds'] }}" required>
+                    <input name="handicap_ratio2_away_odds" type="number" min="1.01" step="0.01" value="{{ match['handicap_ratio2_away_odds'] }}" required>
                 </div>
             </form>
 

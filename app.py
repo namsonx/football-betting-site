@@ -127,7 +127,7 @@ def settle_match_with_result(match_id: int, result: str, score_home: int, score_
     settled_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     bets = db.execute(
         """
-        SELECT id, user_id, outcome, odds, stake, status, payout
+        SELECT id, user_id, bet_type, outcome, handicap_side, handicap_line, odds, stake, status, payout
         FROM bets
         WHERE match_id = ?
         """,
@@ -144,7 +144,13 @@ def settle_match_with_result(match_id: int, result: str, score_home: int, score_
 
     settlement_events = []
     for bet in bets:
-        won = bet["outcome"] == result
+        if bet["bet_type"] == "result":
+            won = bet["outcome"] == result
+        else:
+            if bet["handicap_side"] == "home":
+                won = (score_home + float(bet["handicap_line"])) > score_away
+            else:
+                won = (score_away + float(bet["handicap_line"])) > score_home
         payout = round(bet["stake"] * bet["odds"], 2) if won else 0.0
         bet_status = "won" if won else "lost"
 
@@ -268,10 +274,19 @@ def register():
         return redirect(url_for("dashboard"))
 
     if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        email = request.form.get("email", "").strip()
+        phone = request.form.get("phone", "").strip()
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
-        if len(username) < 3:
+        if not full_name:
+            flash(t("flash.full_name_required"), "danger")
+        elif not email:
+            flash(t("flash.email_required"), "danger")
+        elif "@" not in email:
+            flash(t("flash.invalid_email"), "danger")
+        elif len(username) < 3:
             flash(t("flash.username_min"), "danger")
         elif len(password) < 6:
             flash(t("flash.password_min"), "danger")
@@ -290,12 +305,18 @@ def register():
                 role = "admin" if admin_count == 0 else "user"
 
                 db.execute(
-                    "INSERT INTO users (username, password_hash, created_at, role) VALUES (?, ?, ?, ?)",
+                    """
+                    INSERT INTO users (username, password_hash, created_at, role, full_name, email, phone)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
                     (
                         username,
                         generate_password_hash(password),
                         datetime.now(UTC).replace(microsecond=0).isoformat(),
                         role,
+                        full_name,
+                        email,
+                        phone or None,
                     ),
                 )
                 db.commit()
@@ -441,6 +462,7 @@ def admin_dashboard():
 def place_bet():
     db = BETTING_DB.get_db()
     user = get_current_user()
+    bet_type = request.form.get("bet_type", "result").strip()
     outcome = request.form.get("outcome", "")
 
     try:
@@ -450,7 +472,19 @@ def place_bet():
         flash(t("flash.valid_stake"), "danger")
         return redirect(url_for("dashboard"))
 
-    if outcome not in {"home", "draw", "away"}:
+    handicap_pick = request.form.get("handicap_pick", "ratio1_home").strip()
+    handicap_side = None
+    handicap_line = None
+
+    if bet_type == "result":
+        if outcome not in {"home", "draw", "away"}:
+            flash(t("flash.valid_outcome"), "danger")
+            return redirect(url_for("dashboard"))
+    elif bet_type == "handicap":
+        if handicap_pick not in {"ratio1_home", "ratio1_away", "ratio2_home", "ratio2_away"}:
+            flash(t("flash.invalid_handicap_option"), "danger")
+            return redirect(url_for("dashboard"))
+    else:
         flash(t("flash.valid_outcome"), "danger")
         return redirect(url_for("dashboard"))
 
@@ -475,30 +509,60 @@ def place_bet():
         flash(t("flash.insufficient_balance"), "danger")
         return redirect(url_for("dashboard"))
 
-    odds_map = {
-        "home": match["home_odds"],
-        "draw": match["draw_odds"],
-        "away": match["away_odds"],
-    }
+    if bet_type == "result":
+        odds = {
+            "home": match["home_odds"],
+            "draw": match["draw_odds"],
+            "away": match["away_odds"],
+        }[outcome]
+    else:
+        if handicap_pick.startswith("ratio1"):
+            ratio_line = float(match["handicap_ratio1_line"])
+            if handicap_pick.endswith("home"):
+                handicap_side = "home"
+                handicap_line = -ratio_line
+                odds = float(match["handicap_ratio1_home_odds"])
+            else:
+                handicap_side = "away"
+                handicap_line = ratio_line
+                odds = float(match["handicap_ratio1_away_odds"])
+        else:
+            ratio_line = float(match["handicap_ratio2_line"])
+            if handicap_pick.endswith("home"):
+                handicap_side = "home"
+                handicap_line = -ratio_line
+                odds = float(match["handicap_ratio2_home_odds"])
+            else:
+                handicap_side = "away"
+                handicap_line = ratio_line
+                odds = float(match["handicap_ratio2_away_odds"])
+        outcome = "handicap"
+
     placed_at = datetime.now(UTC).replace(microsecond=0).isoformat()
 
     cursor = db.execute(
         """
-        INSERT INTO bets (user_id, match_id, outcome, odds, stake, placed_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO bets (user_id, match_id, bet_type, outcome, handicap_side, handicap_line, odds, stake, placed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (user["id"], match_id, outcome, odds_map[outcome], stake, placed_at),
+        (user["id"], match_id, bet_type, outcome, handicap_side, handicap_line, odds, stake, placed_at),
     )
     bet_id = cursor.lastrowid
     db.execute(
         "UPDATE users SET balance = balance - ? WHERE id = ?",
         (stake, user["id"]),
     )
-    outcome_label = {
-        "home": t("dashboard.home_win"),
-        "draw": t("dashboard.draw"),
-        "away": t("dashboard.away_win"),
-    }[outcome]
+    if bet_type == "result":
+        outcome_label = {
+            "home": t("dashboard.home_win"),
+            "draw": t("dashboard.draw"),
+            "away": t("dashboard.away_win"),
+        }[outcome]
+    else:
+        side_label = t("dashboard.home_team_short") if handicap_side == "home" else t("dashboard.away_team_short")
+        line_label = f"{handicap_line:+.2f}"
+        outcome_label = t("dashboard.handicap_pick_label", side=side_label, line=line_label)
+
     log_activity(
         user_id=user["id"],
         activity_type="bet_placed",
@@ -508,7 +572,7 @@ def place_bet():
             fixture=f"{match['home_team']} vs {match['away_team']}",
             outcome=outcome_label,
             stake=f"{stake:.2f}",
-            odds=f"{odds_map[outcome]:.2f}",
+            odds=f"{odds:.2f}",
         ),
         related_bet_id=bet_id,
         created_at=placed_at,
@@ -560,6 +624,12 @@ def admin_update_match():
         home_odds = float(request.form.get("home_odds", "0"))
         draw_odds = float(request.form.get("draw_odds", "0"))
         away_odds = float(request.form.get("away_odds", "0"))
+        handicap_ratio1_line = abs(float(request.form.get("handicap_ratio1_line", "0")))
+        handicap_ratio1_home_odds = float(request.form.get("handicap_ratio1_home_odds", "0"))
+        handicap_ratio1_away_odds = float(request.form.get("handicap_ratio1_away_odds", "0"))
+        handicap_ratio2_line = abs(float(request.form.get("handicap_ratio2_line", "0")))
+        handicap_ratio2_home_odds = float(request.form.get("handicap_ratio2_home_odds", "0"))
+        handicap_ratio2_away_odds = float(request.form.get("handicap_ratio2_away_odds", "0"))
     except ValueError:
         flash(t("flash.invalid_match_data"), "danger")
         return redirect(url_for("admin_dashboard"))
@@ -578,6 +648,14 @@ def admin_update_match():
         flash(t("flash.invalid_match_data"), "danger")
         return redirect(url_for("admin_dashboard"))
 
+    if min(handicap_ratio1_home_odds, handicap_ratio1_away_odds, handicap_ratio2_home_odds, handicap_ratio2_away_odds) <= 1:
+        flash(t("flash.invalid_match_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    if min(handicap_ratio1_line, handicap_ratio2_line) <= 0:
+        flash(t("flash.invalid_match_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
     try:
         kickoff_iso = datetime.fromisoformat(kickoff_at).replace(microsecond=0).isoformat()
     except ValueError:
@@ -588,7 +666,12 @@ def admin_update_match():
         """
         UPDATE matches
         SET home_team = ?, away_team = ?, kickoff_at = ?, stadium = ?,
-            home_odds = ?, draw_odds = ?, away_odds = ?, status = ?
+            home_odds = ?, draw_odds = ?, away_odds = ?,
+            handicap_ratio1_line = ?, handicap_ratio1_home_odds = ?, handicap_ratio1_away_odds = ?,
+            handicap_ratio2_line = ?, handicap_ratio2_home_odds = ?, handicap_ratio2_away_odds = ?,
+            handicap1_side = ?, handicap1_line = ?, handicap1_odds = ?,
+            handicap2_side = ?, handicap2_line = ?, handicap2_odds = ?,
+            status = ?
         WHERE id = ?
         """,
         (
@@ -599,6 +682,18 @@ def admin_update_match():
             home_odds,
             draw_odds,
             away_odds,
+            handicap_ratio1_line,
+            handicap_ratio1_home_odds,
+            handicap_ratio1_away_odds,
+            handicap_ratio2_line,
+            handicap_ratio2_home_odds,
+            handicap_ratio2_away_odds,
+            "home",
+            -handicap_ratio1_line,
+            handicap_ratio1_home_odds,
+            "away",
+            handicap_ratio1_line,
+            handicap_ratio1_away_odds,
             status,
             match_id,
         ),
@@ -657,6 +752,94 @@ def admin_update_match_result():
 
     BETTING_DB.get_db().commit()
     flash(t("flash.match_result_updated"), "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/matches/create", methods=["POST"])
+@admin_required
+def admin_create_match():
+    db = BETTING_DB.get_db()
+
+    home_team = request.form.get("home_team", "").strip()
+    away_team = request.form.get("away_team", "").strip()
+    kickoff_at = request.form.get("kickoff_at", "").strip()
+    stadium = request.form.get("stadium", "").strip()
+
+    try:
+        home_odds = float(request.form.get("home_odds", "0"))
+        draw_odds = float(request.form.get("draw_odds", "0"))
+        away_odds = float(request.form.get("away_odds", "0"))
+        handicap_ratio1_line = abs(float(request.form.get("handicap_ratio1_line", "0")))
+        handicap_ratio1_home_odds = float(request.form.get("handicap_ratio1_home_odds", "0"))
+        handicap_ratio1_away_odds = float(request.form.get("handicap_ratio1_away_odds", "0"))
+        handicap_ratio2_line = abs(float(request.form.get("handicap_ratio2_line", "0")))
+        handicap_ratio2_home_odds = float(request.form.get("handicap_ratio2_home_odds", "0"))
+        handicap_ratio2_away_odds = float(request.form.get("handicap_ratio2_away_odds", "0"))
+    except ValueError:
+        flash(t("flash.invalid_match_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    if not home_team or not away_team or not stadium:
+        flash(t("flash.invalid_match_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    if min(
+        home_odds,
+        draw_odds,
+        away_odds,
+        handicap_ratio1_home_odds,
+        handicap_ratio1_away_odds,
+        handicap_ratio2_home_odds,
+        handicap_ratio2_away_odds,
+    ) <= 1:
+        flash(t("flash.invalid_match_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    if min(handicap_ratio1_line, handicap_ratio2_line) <= 0:
+        flash(t("flash.invalid_match_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    try:
+        kickoff_iso = datetime.fromisoformat(kickoff_at).replace(microsecond=0).isoformat()
+    except ValueError:
+        flash(t("flash.invalid_match_data"), "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    db.execute(
+        """
+        INSERT INTO matches (
+            home_team, away_team, kickoff_at, stadium, home_odds, draw_odds, away_odds,
+            handicap_ratio1_line, handicap_ratio1_home_odds, handicap_ratio1_away_odds,
+            handicap_ratio2_line, handicap_ratio2_home_odds, handicap_ratio2_away_odds,
+            handicap1_side, handicap1_line, handicap1_odds,
+            handicap2_side, handicap2_line, handicap2_odds,
+            status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')
+        """,
+        (
+            home_team,
+            away_team,
+            kickoff_iso,
+            stadium,
+            home_odds,
+            draw_odds,
+            away_odds,
+            handicap_ratio1_line,
+            handicap_ratio1_home_odds,
+            handicap_ratio1_away_odds,
+            handicap_ratio2_line,
+            handicap_ratio2_home_odds,
+            handicap_ratio2_away_odds,
+            "home",
+            -handicap_ratio1_line,
+            handicap_ratio1_home_odds,
+            "away",
+            handicap_ratio1_line,
+            handicap_ratio1_away_odds,
+        ),
+    )
+    db.commit()
+    flash(t("flash.match_created"), "success")
     return redirect(url_for("admin_dashboard"))
 
 

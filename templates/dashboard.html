@@ -57,6 +57,7 @@
             </div>
             <form class="bet-form" method="post" action="{{ url_for('place_bet') }}">
                 <input type="hidden" name="match_id" value="{{ match['id'] }}">
+                <input type="hidden" name="bet_type" value="result">
                 <div class="pick-row">
                     <label><input type="radio" name="outcome" value="home" checked> {{ t('dashboard.home_win') }}</label>
                     <label><input type="radio" name="outcome" value="draw"> {{ t('dashboard.draw') }}</label>
@@ -65,6 +66,36 @@
                 <div class="stake-row">
                     <input name="stake" type="number" min="5" step="0.01" placeholder="{{ t('dashboard.stake_placeholder') }}" required>
                     <button class="button primary" type="submit">{{ t('dashboard.place_bet_btn') }}</button>
+                </div>
+            </form>
+
+            <form class="bet-form" method="post" action="{{ url_for('place_bet') }}">
+                <input type="hidden" name="match_id" value="{{ match['id'] }}">
+                <input type="hidden" name="bet_type" value="handicap">
+                <p class="panel-label">{{ t('dashboard.handicap_market') }}</p>
+                <div class="pick-row">
+                    <label>
+                        <input type="radio" name="handicap_pick" value="ratio1_home" checked>
+                        {{ t('dashboard.home_team_short') }} -{{ "%.2f"|format(match['handicap_ratio1_line']) }} @ {{ "%.2f"|format(match['handicap_ratio1_home_odds']) }}
+                    </label>
+                    <label>
+                        <input type="radio" name="handicap_pick" value="ratio1_away">
+                        {{ t('dashboard.away_team_short') }} +{{ "%.2f"|format(match['handicap_ratio1_line']) }} @ {{ "%.2f"|format(match['handicap_ratio1_away_odds']) }}
+                    </label>
+                </div>
+                <div class="pick-row">
+                    <label>
+                        <input type="radio" name="handicap_pick" value="ratio2_home">
+                        {{ t('dashboard.home_team_short') }} -{{ "%.2f"|format(match['handicap_ratio2_line']) }} @ {{ "%.2f"|format(match['handicap_ratio2_home_odds']) }}
+                    </label>
+                    <label>
+                        <input type="radio" name="handicap_pick" value="ratio2_away">
+                        {{ t('dashboard.away_team_short') }} +{{ "%.2f"|format(match['handicap_ratio2_line']) }} @ {{ "%.2f"|format(match['handicap_ratio2_away_odds']) }}
+                    </label>
+                </div>
+                <div class="stake-row">
+                    <input name="stake" type="number" min="5" step="0.01" placeholder="{{ t('dashboard.stake_placeholder') }}" required>
+                    <button class="button secondary" type="submit">{{ t('dashboard.place_handicap_btn') }}</button>
                 </div>
             </form>
         </article>
@@ -96,7 +127,14 @@
             {% for bet in recent_bets %}
                 <tr>
                     <td>{{ bet['home_team'] }} {{ t('common.vs') }} {{ bet['away_team'] }}</td>
-                    <td>{{ bet['outcome']|upper }}</td>
+                    <td>
+                        {% if bet['bet_type'] == 'handicap' %}
+                            {% set b_side = t('dashboard.home_team_short') if bet['handicap_side'] == 'home' else t('dashboard.away_team_short') %}
+                            {{ t('dashboard.handicap_option_label', side=b_side, line="%+.2f"|format(bet['handicap_line'])) }}
+                        {% else %}
+                            {{ bet['outcome']|upper }}
+                        {% endif %}
+                    </td>
                     <td>{{ bet['stake']|money }}</td>
                     <td><span class="status status-{{ bet['status'] }}">{{ t('status.' ~ bet['status']) }}</span></td>
                     <td>{{ (bet['payout'] or 0)|money }}</td>

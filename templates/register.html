@@ -10,6 +10,15 @@
         <p>{{ t('auth.starter_credit_hint') }}</p>
     </div>
     <form class="auth-card" method="post">
+        <label for="full_name">{{ t('auth.full_name') }}</label>
+        <input id="full_name" name="full_name" type="text" placeholder="{{ t('auth.full_name_placeholder') }}" required>
+
+        <label for="email">{{ t('auth.email') }}</label>
+        <input id="email" name="email" type="email" placeholder="{{ t('auth.email_placeholder') }}" required>
+
+        <label for="phone">{{ t('auth.phone') }}</label>
+        <input id="phone" name="phone" type="text" placeholder="{{ t('auth.phone_optional') }}">
+
         <label for="username">{{ t('auth.username') }}</label>
         <input id="username" name="username" type="text" minlength="3" placeholder="MU mãi đỉnh" required>
 
